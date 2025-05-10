@@ -1,6 +1,7 @@
 package com.example.shopit;
 
 import android.app.Dialog;
+import android.content.Intent;
 import android.os.Bundle;
 import android.view.View;
 import android.widget.Button;
@@ -13,16 +14,12 @@ import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 
 import com.example.shopit.adapters.ProductAdapter;
-import com.example.shopit.database.UserManager;
 import com.example.shopit.models.Product;
+import com.example.shopit.utils.ProductManager;
 import com.example.shopit.utils.SessionManager;
 
-import java.util.ArrayList;
 import java.util.List;
 
-/**
- * Activity for shopping management
- */
 public class ShoppingActivity extends AppCompatActivity implements ProductAdapter.OnProductActionListener {
 
     private TextView welcomeTextView;
@@ -30,8 +27,8 @@ public class ShoppingActivity extends AppCompatActivity implements ProductAdapte
     private ListView productsListView;
 
     private String username;
-    private UserManager userManager;
     private SessionManager sessionManager;
+    private ProductManager productManager;
     private ProductAdapter productAdapter;
     private List<Product> productList;
 
@@ -40,170 +37,79 @@ public class ShoppingActivity extends AppCompatActivity implements ProductAdapte
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_shopping);
 
-        // Initialize managers
-        userManager = new UserManager();
         sessionManager = SessionManager.getInstance(this);
+        productManager = ProductManager.getInstance();
 
-        // Get username from session
         username = sessionManager.getUsername();
-
-        // Check if user is logged in
         if (username == null) {
-            finish(); // Return to login activity
+            startActivity(new Intent(this, LoginActivity.class));
+            finish();
             return;
         }
 
-        // Initialize UI components
         welcomeTextView = findViewById(R.id.welcomeTextView);
         addProductButton = findViewById(R.id.addProductButton);
         logoutButton = findViewById(R.id.logoutButton);
         productsListView = findViewById(R.id.productsListView);
 
-        // Set welcome message
         welcomeTextView.setText(getString(R.string.welcome_format, username));
 
-        // Initialize product list and adapter
-        productList = new ArrayList<>();
+        productList = productManager.getProducts(username);
         productAdapter = new ProductAdapter(this, productList, this);
         productsListView.setAdapter(productAdapter);
 
-        // Fetch products
-        fetchProducts();
-
-        // Add product button click listener
-        addProductButton.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                showAddProductDialog();
-            }
-        });
-
-        // Logout button click listener
-        logoutButton.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                // Clear session data
-                sessionManager.logout();
-
-                // Return to login activity
-                finish();
-            }
+        addProductButton.setOnClickListener(v -> showAddProductDialog());
+        logoutButton.setOnClickListener(v -> {
+            sessionManager.logout();
+            startActivity(new Intent(this, LoginActivity.class));
+            finish();
         });
     }
 
-    /**
-     * Show dialog to add new product
-     */
     private void showAddProductDialog() {
-        // Create dialog
         Dialog dialog = new Dialog(this);
         dialog.setContentView(R.layout.dialog_add_product);
         dialog.setTitle(R.string.add_product);
 
-        // Initialize dialog components
-        EditText productNameEditText = dialog.findViewById(R.id.productNameEditText);
-        EditText productQuantityEditText = dialog.findViewById(R.id.productQuantityEditText);
-        Button addButton = dialog.findViewById(R.id.addButton);
-        Button cancelButton = dialog.findViewById(R.id.cancelButton);
+        EditText nameInput = dialog.findViewById(R.id.productNameEditText);
+        EditText qtyInput  = dialog.findViewById(R.id.productQuantityEditText);
+        Button addBtn      = dialog.findViewById(R.id.addButton);
+        Button cancelBtn   = dialog.findViewById(R.id.cancelButton);
 
-        // Add button click listener
-        addButton.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                String productName = productNameEditText.getText().toString().trim();
-                String quantityStr = productQuantityEditText.getText().toString().trim();
-
-                if (productName.isEmpty() || quantityStr.isEmpty()) {
-                    Toast.makeText(ShoppingActivity.this, R.string.error_empty_fields, Toast.LENGTH_SHORT).show();
-                    return;
-                }
-
-                int quantity;
-                try {
-                    quantity = Integer.parseInt(quantityStr);
-                    if (quantity <= 0) {
-                        Toast.makeText(ShoppingActivity.this, R.string.error_invalid_quantity, Toast.LENGTH_SHORT).show();
-                        return;
-                    }
-                } catch (NumberFormatException e) {
-                    Toast.makeText(ShoppingActivity.this, R.string.error_invalid_quantity, Toast.LENGTH_SHORT).show();
-                    return;
-                }
-
-                // Create product object
-                Product newProduct = new Product(productName, quantity, username);
-
-                // Add product in background thread
-                new Thread(() -> {
-                    boolean isAdded = userManager.addProduct(newProduct);
-
-                    runOnUiThread(() -> {
-                        if (isAdded) {
-                            // Dismiss dialog
-                            dialog.dismiss();
-
-                            // Refresh product list
-                            fetchProducts();
-
-                            Toast.makeText(ShoppingActivity.this, R.string.product_added, Toast.LENGTH_SHORT).show();
-                        } else {
-                            Toast.makeText(ShoppingActivity.this, R.string.error_adding_product, Toast.LENGTH_SHORT).show();
-                        }
-                    });
-                }).start();
+        addBtn.setOnClickListener(v -> {
+            String name = nameInput.getText().toString().trim();
+            String qtyStr = qtyInput.getText().toString().trim();
+            if (name.isEmpty() || qtyStr.isEmpty()) {
+                Toast.makeText(this, R.string.error_empty_fields, Toast.LENGTH_SHORT).show();
+                return;
             }
+            int qty;
+            try {
+                qty = Integer.parseInt(qtyStr);
+                if (qty <= 0) throw new NumberFormatException();
+            } catch (NumberFormatException e) {
+                Toast.makeText(this, R.string.error_invalid_quantity, Toast.LENGTH_SHORT).show();
+                return;
+            }
+            productManager.addProduct(username, name, qty);
+            productAdapter.notifyDataSetChanged();
+            dialog.dismiss();
+            Toast.makeText(this, R.string.product_added, Toast.LENGTH_SHORT).show();
         });
 
-        // Cancel button click listener
-        cancelButton.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                dialog.dismiss();
-            }
-        });
-
-        // Show dialog
+        cancelBtn.setOnClickListener(v -> dialog.dismiss());
         dialog.show();
     }
 
-    /**
-     * Method to fetch user's products
-     */
-    private void fetchProducts() {
-        new Thread(() -> {
-            List<Product> products = userManager.getUserProducts(username);
-
-            runOnUiThread(() -> {
-                productList.clear();
-                productList.addAll(products);
-                productAdapter.notifyDataSetChanged();
-            });
-        }).start();
-    }
-
-    /**
-     * Handle remove product action
-     * @param productId ID of product to remove
-     */
     @Override
     public void onRemove(String productId) {
         new AlertDialog.Builder(this)
                 .setTitle(R.string.remove_product)
                 .setMessage(R.string.confirm_remove_product)
-                .setPositiveButton(R.string.yes, (dialog, which) -> {
-                    // Remove product in background thread
-                    new Thread(() -> {
-                        boolean isRemoved = userManager.removeProduct(productId);
-
-                        runOnUiThread(() -> {
-                            if (isRemoved) {
-                                fetchProducts();
-                                Toast.makeText(ShoppingActivity.this, R.string.product_removed, Toast.LENGTH_SHORT).show();
-                            } else {
-                                Toast.makeText(ShoppingActivity.this, R.string.error_removing_product, Toast.LENGTH_SHORT).show();
-                            }
-                        });
-                    }).start();
+                .setPositiveButton(R.string.yes, (d, w) -> {
+                    productManager.removeProduct(username, productId);
+                    productAdapter.notifyDataSetChanged();
+                    Toast.makeText(this, R.string.product_removed, Toast.LENGTH_SHORT).show();
                 })
                 .setNegativeButton(R.string.no, null)
                 .show();
@@ -212,6 +118,6 @@ public class ShoppingActivity extends AppCompatActivity implements ProductAdapte
     @Override
     protected void onResume() {
         super.onResume();
-        // Refresh product list
-        fetchProducts();
-    }}
+        productAdapter.notifyDataSetChanged();
+    }
+}

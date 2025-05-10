@@ -46,7 +46,8 @@ android {
                 "META-INF/NOTICE.txt",
                 "META-INF/notice.txt",
                 "META-INF/ASL2.0",
-                "META-INF/*.kotlin_module"
+                "META-INF/*.kotlin_module",
+                "OSGI-INF/bundle.info"
             )
         }
     }
@@ -61,7 +62,8 @@ dependencies {
 
     // MongoDB dependencies - Updated version, simplified
     // mongodb-driver-sync should bring in bson and mongodb-driver-core transitively
-    implementation("org.mongodb:mongodb-driver-sync:4.11.1") // <-- Updated Version (Example, check latest 4.x)
+    implementation("org.mongodb:mongodb-driver-sync:4.2.0") // <-- Updated Version (Example, check latest 4.x)
+    implementation ("javax.annotation:javax.annotation-api:1.3.2")
 
     // Add desugaring library for Java 8+ features
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.3") // Keep for Java 8+ API desugaring

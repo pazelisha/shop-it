@@ -3,40 +3,21 @@ package com.example.shopit.utils;
 import android.content.Context;
 import android.content.SharedPreferences;
 
-/**
- * Session manager to store and handle user session data
- */
 public class SessionManager {
+    private static final String PREFS_NAME = "user_prefs";
+    private static final String KEY_USERNAME = "key_username";
+    private static final String KEY_PASSWORD = "key_password";
+    private static final String KEY_PHONE    = "key_phone";
+    private static final String KEY_LOGGED_IN = "key_logged_in";
 
-    // Shared preferences constants
-    private static final String PREF_NAME = "ShoppingAppPref";
-    private static final String KEY_IS_LOGGED_IN = "isLoggedIn";
-    private static final String KEY_USERNAME = "username";
-    private static final int PRIVATE_MODE = 0;
-
-    // Shared preferences and editor
-    private SharedPreferences sharedPreferences;
-    private SharedPreferences.Editor editor;
-    private Context context;
-
-    // Singleton instance
     private static SessionManager instance;
+    private SharedPreferences prefs;
 
-    /**
-     * Private constructor
-     * @param context Application context
-     */
     private SessionManager(Context context) {
-        this.context = context;
-        sharedPreferences = context.getSharedPreferences(PREF_NAME, PRIVATE_MODE);
-        editor = sharedPreferences.edit();
+        prefs = context.getApplicationContext()
+                .getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
     }
 
-    /**
-     * Get singleton instance
-     * @param context Application context
-     * @return Session manager instance
-     */
     public static synchronized SessionManager getInstance(Context context) {
         if (instance == null) {
             instance = new SessionManager(context);
@@ -44,37 +25,42 @@ public class SessionManager {
         return instance;
     }
 
-    /**
-     * Create login session
-     * @param username User's username
-     */
-    public void createLoginSession(String username) {
-        editor.putBoolean(KEY_IS_LOGGED_IN, true);
+
+    public boolean register(String username, String password, String phone) {
+        if (prefs.contains(KEY_USERNAME)) {
+            return false;
+        }
+        SharedPreferences.Editor editor = prefs.edit();
         editor.putString(KEY_USERNAME, username);
-        editor.commit();
+        editor.putString(KEY_PASSWORD, password);
+        editor.putString(KEY_PHONE, phone);
+        editor.apply();
+        return true;
     }
 
-    /**
-     * Get logged in user's username
-     * @return Username or null if not logged in
-     */
-    public String getUsername() {
-        return sharedPreferences.getString(KEY_USERNAME, null);
+
+    public boolean login(String username, String password) {
+        String storedUser = prefs.getString(KEY_USERNAME, null);
+        String storedPass = prefs.getString(KEY_PASSWORD, null);
+        if (storedUser != null && storedUser.equals(username)
+                && storedPass != null && storedPass.equals(password)) {
+            prefs.edit().putBoolean(KEY_LOGGED_IN, true).apply();
+            return true;
+        }
+        return false;
     }
 
-    /**
-     * Check if user is logged in
-     * @return true if logged in, false otherwise
-     */
     public boolean isLoggedIn() {
-        return sharedPreferences.getBoolean(KEY_IS_LOGGED_IN, false);
+        return prefs.getBoolean(KEY_LOGGED_IN, false);
     }
 
-    /**
-     * Clear session data and log out
-     */
+
     public void logout() {
-        editor.clear();
-        editor.commit();
+        prefs.edit().putBoolean(KEY_LOGGED_IN, false).apply();
+    }
+
+
+    public String getUsername() {
+        return prefs.getString(KEY_USERNAME, null);
     }
 }
